@@ -7,14 +7,15 @@
     <style>
         body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 20px; direction: rtl; margin: 0; }
 
-        /* ---- Login screen ---- */
-        .login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; box-sizing: border-box; }
+        .screen { display: none; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; box-sizing: border-box; }
+        .screen.active { display: flex; }
         .login-card { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); max-width: 420px; width: 100%; text-align: center; }
         .login-card h2 { margin-top: 0; font-size: 1.5rem; }
-        .login-card p { color: #555; margin-bottom: 20px; }
+        .login-card p { color: #555; margin-bottom: 20px; font-size: 0.95rem; }
         .login-card input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 1rem; margin-bottom: 12px; direction: ltr; text-align: left; }
+        .login-hint { font-size: 0.78rem; color: #aaa; margin-top: 14px; line-height: 1.6; }
+        .link-btn { background: none; border: none; color: #aaa; font-size: 0.78rem; cursor: pointer; text-decoration: underline; margin-top: 10px; }
 
-        /* ---- Admin ---- */
         .admin-card { max-width: 820px; margin: auto; background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
         .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 15px; }
         .status-bar { background: #2c3e50; color: white; padding: 10px 15px; border-radius: 8px; font-size: 0.9em; flex-grow: 1; }
@@ -40,9 +41,9 @@
 
         .btn { width: 100%; padding: 13px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; font-size: 0.95rem; transition: opacity 0.2s; }
         .btn:hover { opacity: 0.88; }
-        .btn-add { background: #27ae60; color: white; }
+        .btn-add    { background: #27ae60; color: white; }
         .btn-update { background: #2980b9; color: white; display: none; }
-        .btn-cancel { background: #ecf0f1; color: #333; display: none; margin-top: 8px; }
+        .btn-cancel { background: #ecf0f1; color: #333;  display: none; margin-top: 8px; }
         .btn-logout { background: #e74c3c; color: white; padding: 9px 18px; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85rem; white-space: nowrap; }
 
         .category-group { margin-top: 10px; border: 1px solid #eee; border-radius: 10px; overflow: hidden; }
@@ -51,12 +52,14 @@
         .category-group.active .category-content { display: block; }
         .item-row { display: flex; align-items: center; padding: 12px 15px; border-bottom: 1px solid #f1f1f1; gap: 12px; }
         .item-row:last-child { border-bottom: none; }
-        .item-img { width: 52px; height: 52px; object-fit: cover; border-radius: 8px; flex-shrink: 0; background: #eee; }
+        .item-img  { width: 52px; height: 52px; object-fit: cover; border-radius: 8px; flex-shrink: 0; background: #eee; }
         .item-info { flex-grow: 1; font-size: 0.95rem; }
         .item-types { font-size: 0.75rem; color: #b38e5d; margin-top: 3px; }
-        .btn-edit { background: #f39c12; color: white; border: none; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+        .btn-edit   { background: #f39c12; color: white; border: none; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
         .btn-delete { background: #e74c3c; color: white; border: none; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
         .no-items { text-align: center; padding: 25px; color: #bbb; font-style: italic; }
+
+        .error { color: #e74c3c; font-size: 0.85rem; min-height: 1.2em; margin-bottom: 6px; }
 
         @media (max-width: 560px) {
             .form-and-preview { grid-template-columns: 1fr; }
@@ -66,18 +69,37 @@
 </head>
 <body>
 
-<div id="login-screen" class="login-screen">
+<!-- מסך 1: הגדרה ראשונית — הכנסת טוקן (פעם אחת בלבד) -->
+<div id="setup-screen" class="screen">
+    <div class="login-card">
+        <h2>⚙️ הגדרה ראשונית</h2>
+        <p>הכנס את ה-GitHub Token שלך — הוא יישמר במכשיר זה ולא יידרש שוב.</p>
+        <input type="password" id="tokenSetupInput" placeholder="ghp_..." autocomplete="off"
+               onkeydown="if(event.key==='Enter') saveToken()">
+        <div id="setupError" class="error"></div>
+        <button class="btn btn-add" onclick="saveToken()">שמור והמשך</button>
+        <p class="login-hint">
+            יצירת Token: GitHub → Settings → Developer settings →<br>
+            Personal access tokens → הרשאות: <strong>repo</strong>
+        </p>
+    </div>
+</div>
+
+<!-- מסך 2: כניסה עם סיסמא בלבד -->
+<div id="login-screen" class="screen">
     <div class="login-card">
         <h2>🔐 כניסה לניהול</h2>
         <p>הכנס את הסיסמא כדי לנהל את התפריט.</p>
         <input type="password" id="passwordInput" placeholder="סיסמא" autocomplete="off"
                onkeydown="if(event.key==='Enter') login()">
-        <div id="loginError" style="color:#e74c3c;font-size:0.85rem;min-height:1.2em;margin-bottom:6px;"></div>
+        <div id="loginError" class="error"></div>
         <button class="btn btn-add" onclick="login()">התחבר</button>
+        <button class="link-btn" onclick="resetDevice()">החלף מכשיר / Token</button>
     </div>
 </div>
 
-<div id="admin-content" style="display:none">
+<!-- מסך 3: ממשק ניהול -->
+<div id="admin-screen" style="display:none">
     <div class="admin-card">
         <div class="admin-header">
             <div class="status-bar" id="statusMsg">מתחבר...</div>
@@ -127,18 +149,28 @@
 </div>
 
 <script>
-    // ─── After deploying the Cloudflare Worker, paste its URL here ───
-    const WORKER_URL = 'https://my-rest-proxy.YOUR_SUBDOMAIN.workers.dev';
-    // ──────────────────────────────────────────────────────
-
     const REPO_OWNER          = 'BigDadies-55';
     const REPO_NAME           = 'My-Rest';
     const DB_FILE             = 'menu_db.json';
+    const API_BASE            = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents`;
     const ADMIN_PASSWORD_HASH = '9a0006e03ef51caa741dc8412bb01e83d7ef606b65f3bbb9807c508977e7e918';
 
     let db           = { settings: {}, categories: [], items: [], types: [] };
     let currentSHA   = '';
     let pendingImage = null;
+
+    // ---- Screens ----
+
+    function show(screenId) {
+        ['setup-screen','login-screen','admin-screen'].forEach(id => {
+            const el = document.getElementById(id);
+            if (id === 'admin-screen') {
+                el.style.display = id === screenId ? 'block' : 'none';
+            } else {
+                el.classList.toggle('active', id === screenId);
+            }
+        });
+    }
 
     // ---- Auth ----
 
@@ -147,16 +179,31 @@
         return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
-    function getHash()      { return sessionStorage.getItem('admin_auth'); }
-    function workerHeaders() {
-        return { 'Content-Type': 'application/json', 'X-Admin-Auth': getHash() };
+    function getToken() { return localStorage.getItem('gh_token'); }
+    function authHeaders() {
+        return { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' };
     }
 
+    // Step 1 — save token once
+    function saveToken() {
+        const token   = document.getElementById('tokenSetupInput').value.trim();
+        const errorEl = document.getElementById('setupError');
+        if (!token.startsWith('ghp_') && !token.startsWith('github_pat_')) {
+            errorEl.textContent = 'Token לא תקין — חייב להתחיל ב-ghp_ או github_pat_';
+            return;
+        }
+        localStorage.setItem('gh_token', token);
+        document.getElementById('tokenSetupInput').value = '';
+        errorEl.textContent = '';
+        show('login-screen');
+        document.getElementById('passwordInput').focus();
+    }
+
+    // Step 2 — verify password
     async function login() {
         const password = document.getElementById('passwordInput').value;
         const errorEl  = document.getElementById('loginError');
         errorEl.textContent = '';
-
         if (!password) { errorEl.textContent = 'אנא הכנס סיסמא.'; return; }
 
         const hash = await sha256(password);
@@ -167,28 +214,43 @@
             return;
         }
 
-        sessionStorage.setItem('admin_auth', hash);
-        document.getElementById('login-screen').style.display  = 'none';
-        document.getElementById('admin-content').style.display = 'block';
+        sessionStorage.setItem('admin_auth', '1');
+        show('admin-screen');
         loadFromGitHub();
     }
 
+    // Logout — keeps token in localStorage, clears session
     function logout() {
         sessionStorage.removeItem('admin_auth');
-        document.getElementById('admin-content').style.display = 'none';
-        document.getElementById('login-screen').style.display  = 'flex';
-        document.getElementById('passwordInput').value         = '';
-        document.getElementById('loginError').textContent      = '';
+        document.getElementById('passwordInput').value    = '';
+        document.getElementById('loginError').textContent = '';
+        show('login-screen');
     }
 
-    // ---- GitHub API (via Worker) ----
+    // Clear token (switch device / new token)
+    function resetDevice() {
+        if (!confirm('האם לנקות את ה-Token השמור ולהגדיר מחדש?')) return;
+        localStorage.removeItem('gh_token');
+        sessionStorage.removeItem('admin_auth');
+        show('setup-screen');
+    }
+
+    // ---- Init routing ----
+    (function init() {
+        if (!getToken())                          { show('setup-screen');  return; }
+        if (!sessionStorage.getItem('admin_auth')) { show('login-screen'); return; }
+        show('admin-screen');
+        loadFromGitHub();
+    })();
+
+    // ---- GitHub API ----
 
     function setStatus(msg) { document.getElementById('statusMsg').textContent = msg; }
 
     async function loadFromGitHub() {
-        setStatus('⏳ מתחבר לענן...');
+        setStatus('⏳ מתחבר ל-GitHub...');
         try {
-            const res = await fetch(`${WORKER_URL}/${DB_FILE}`, { headers: workerHeaders() });
+            const res = await fetch(`${API_BASE}/${DB_FILE}`, { headers: authHeaders() });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             currentSHA = data.sha;
@@ -202,7 +264,7 @@
             renderItems();
         } catch (e) {
             console.error(e);
-            setStatus('❌ שגיאה בחיבור — בדוק את כתובת ה-Worker');
+            setStatus('❌ שגיאה בחיבור — בדוק את ה-Token');
         }
     }
 
@@ -213,9 +275,9 @@
         bytes.forEach(b => binary += String.fromCharCode(b));
 
         try {
-            const res = await fetch(`${WORKER_URL}/${DB_FILE}`, {
+            const res = await fetch(`${API_BASE}/${DB_FILE}`, {
                 method:  'PUT',
-                headers: workerHeaders(),
+                headers: authHeaders(),
                 body:    JSON.stringify({ message: `Update menu (${db.items.length} items)`, content: btoa(binary), sha: currentSHA }),
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -233,9 +295,9 @@
     async function uploadImage(base64DataUrl) {
         const filename = `img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.jpg`;
         const base64   = base64DataUrl.split(',')[1];
-        const res = await fetch(`${WORKER_URL}/images/${filename}`, {
+        const res = await fetch(`${API_BASE}/images/${filename}`, {
             method:  'PUT',
-            headers: workerHeaders(),
+            headers: authHeaders(),
             body:    JSON.stringify({ message: `Add image ${filename}`, content: base64 }),
         });
         if (!res.ok) throw new Error(`Image upload failed: HTTP ${res.status}`);
@@ -301,7 +363,7 @@
     function validateForm() {
         const name  = document.getElementById('itemName').value.trim();
         const price = parseFloat(document.getElementById('itemPrice').value);
-        if (!name)                     { alert('אנא הכנס שם מנה');   return null; }
+        if (!name)                     { alert('אנא הכנס שם מנה');    return null; }
         if (isNaN(price) || price < 0) { alert('אנא הכנס מחיר תקין'); return null; }
         return {
             name, price,
@@ -350,10 +412,10 @@
             : '';
         showPreview(existingImgSrc);
 
-        document.getElementById('imageFile').value             = '';
-        document.getElementById('addBtn').style.display        = 'none';
-        document.getElementById('updateBtn').style.display     = 'block';
-        document.getElementById('cancelBtn').style.display     = 'block';
+        document.getElementById('imageFile').value         = '';
+        document.getElementById('addBtn').style.display    = 'none';
+        document.getElementById('updateBtn').style.display = 'block';
+        document.getElementById('cancelBtn').style.display = 'block';
         document.getElementById('editor-form').scrollIntoView({ behavior: 'smooth' });
     }
 
@@ -464,12 +526,6 @@
         if (btn.dataset.action === 'edit')        startEdit(id);
         else if (btn.dataset.action === 'delete') deleteItem(id);
     });
-
-    if (getHash()) {
-        document.getElementById('login-screen').style.display  = 'none';
-        document.getElementById('admin-content').style.display = 'block';
-        loadFromGitHub();
-    }
 </script>
 </body>
 </html>
