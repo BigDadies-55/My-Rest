@@ -70,18 +70,26 @@
 </div>
 
 <script>
-    const REPO = 'BigDadies-55/My-Rest';
-    const DB_URL = `https://raw.githubusercontent.com/${REPO}/main/menu_db.json`;
+    // ── כתובת Firebase Realtime Database ────────────────────────────────
+    const FIREBASE_DB_URL = 'https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com/menu.json';
+    // ─────────────────────────────────────────────────────────────────
+
+    const GITHUB_IMG_BASE = 'https://raw.githubusercontent.com/BigDadies-55/My-Rest/main/images/';
+
     let db = { settings: {}, categories: [], items: [] };
     let currentCat = '';
 
-    // Escape user data before inserting into HTML to prevent XSS
     function esc(s) {
         return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     }
 
+    function resolveImg(item) {
+        if (item.imageUrl) return item.imageUrl;
+        if (item.image)    return `${GITHUB_IMG_BASE}${item.image}`;
+        return '';
+    }
+
     async function load() {
-        // Event delegation set up once — survives innerHTML replacements inside the containers
         document.getElementById('filter-nav').addEventListener('click', e => {
             const btn = e.target.closest('.filter-btn');
             if (btn) changeCat(btn.dataset.cat);
@@ -106,29 +114,27 @@
         });
 
         try {
-            const res = await fetch(`${DB_URL}?v=${Date.now()}`);
+            const res  = await fetch(`${FIREBASE_DB_URL}?v=${Date.now()}`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            db = await res.json();
+            const menu = await res.json();
 
-            document.getElementById('mainTitle').textContent = db.settings.name || 'KOJI';
-            document.getElementById('mainAddress').textContent = db.settings.address || '';
+            db.settings   = menu.settings   || {};
+            db.categories = menu.categories  || [];
+            db.items      = Object.values(menu.items || {}).sort((a, b) => a.id - b.id);
+
+            document.getElementById('mainTitle').textContent   = db.settings.name    || 'KOJI';
+            document.getElementById('mainAddress').textContent = db.settings.address  || '';
 
             if (db.settings.logo) {
                 const logo = document.getElementById('mainLogo');
-                logo.src = `https://raw.githubusercontent.com/${REPO}/main/images/${db.settings.logo}`;
+                logo.src = `${GITHUB_IMG_BASE}${db.settings.logo}`;
                 logo.alt = db.settings.name || 'לוגו';
             }
 
             const barParts = [];
-            if (db.settings.mapLink) {
-                barParts.push(`<a href="${esc(db.settings.mapLink)}" target="_blank" rel="noopener noreferrer" class="action-btn btn-phone-float">🗺️ ניווט</a>`);
-            }
-            if (db.settings.phone) {
-                barParts.push(`<a href="tel:${esc(db.settings.phone)}" class="action-btn btn-phone-float">📞 התקשרו</a>`);
-            }
-            if (db.settings.orderLink) {
-                barParts.push(`<a href="${esc(db.settings.orderLink)}" target="_blank" rel="noopener noreferrer" class="action-btn btn-order-float">🛵 הזמנה אונליין</a>`);
-            }
+            if (db.settings.mapLink)   barParts.push(`<a href="${esc(db.settings.mapLink)}" target="_blank" rel="noopener noreferrer" class="action-btn btn-phone-float">🗺️ ניווט</a>`);
+            if (db.settings.phone)     barParts.push(`<a href="tel:${esc(db.settings.phone)}" class="action-btn btn-phone-float">📞 התקשרו</a>`);
+            if (db.settings.orderLink) barParts.push(`<a href="${esc(db.settings.orderLink)}" target="_blank" rel="noopener noreferrer" class="action-btn btn-order-float">🛵 הזמנה אונליין</a>`);
             document.getElementById('floating-bar').innerHTML = barParts.join('');
 
             if (db.categories.length > 0) {
@@ -148,17 +154,15 @@
         ).join('');
 
         const items = db.items.filter(i => i.category === currentCat);
-
         if (items.length === 0) {
             document.getElementById('menu-display').innerHTML = '<p class="error-msg">אין מנות בקטגוריה זו.</p>';
             return;
         }
 
-        const imgBase = `https://raw.githubusercontent.com/${REPO}/main/images/`;
         const defaultDesc = 'מנה יפנית מסורתית מחומרי הגלם הטריים ביותר.';
 
         document.getElementById('menu-display').innerHTML = items.map(i => {
-            const imgSrc = i.image ? `${imgBase}${esc(i.image)}` : '';
+            const imgSrc   = esc(resolveImg(i));
             const typeHtml = (i.types || []).map(t => `<span class="type-tag">${esc(t)}</span>`).join('');
             return `
                 <div class="card" data-img="${imgSrc}" data-name="${esc(i.name)}" role="button" tabindex="0" aria-label="${esc(i.name)}">
