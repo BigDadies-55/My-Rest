@@ -2,6 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ניהול תפריט</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 20px; direction: rtl; margin: 0; }
@@ -70,9 +71,12 @@
 <div id="token-screen" class="login-screen">
     <div class="login-card">
         <h2>🔐 כניסה לניהול</h2>
-        <p>הכנס את ה-GitHub Personal Access Token שלך כדי לנהל את התפריט.</p>
+        <p>הכנס סיסמא ואת ה-GitHub Personal Access Token שלך.</p>
+        <input type="password" id="passwordInput" placeholder="סיסמא" autocomplete="off"
+               onkeydown="if(event.key==='Enter') document.getElementById('tokenInput').focus()">
         <input type="password" id="tokenInput" placeholder="ghp_..." autocomplete="off"
                onkeydown="if(event.key==='Enter') submitToken()">
+        <div id="loginError" style="color:#e74c3c;font-size:0.85rem;min-height:1.2em;margin-bottom:6px;"></div>
         <button class="btn btn-add" onclick="submitToken()">התחבר</button>
         <p class="login-hint">
             יצירת Token: GitHub → Settings → Developer settings →<br>
@@ -139,9 +143,16 @@
 
     let db           = { settings: {}, categories: [], items: [], types: [] };
     let currentSHA   = '';
-    let pendingImage = null; // base64 data URL of a newly selected image, null if unchanged
+    let pendingImage = null;
 
     // ---- Auth ----
+
+    const ADMIN_PASSWORD_HASH = '9a0006e03ef51caa741dc8412bb01e83d7ef606b65f3bbb9807c508977e7e918';
+
+    async function sha256(str) {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
 
     function getToken() { return sessionStorage.getItem('gh_token'); }
 
@@ -149,9 +160,25 @@
         return { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' };
     }
 
-    function submitToken() {
-        const token = document.getElementById('tokenInput').value.trim();
-        if (!token) return;
+    async function submitToken() {
+        const password = document.getElementById('passwordInput').value;
+        const token    = document.getElementById('tokenInput').value.trim();
+        const errorEl  = document.getElementById('loginError');
+        errorEl.textContent = '';
+
+        if (!password || !token) {
+            errorEl.textContent = 'אנא מלא סיסמא ו-Token.';
+            return;
+        }
+
+        const hash = await sha256(password);
+        if (hash !== ADMIN_PASSWORD_HASH) {
+            errorEl.textContent = '❌ סיסמא שגויה.';
+            document.getElementById('passwordInput').value = '';
+            document.getElementById('passwordInput').focus();
+            return;
+        }
+
         sessionStorage.setItem('gh_token', token);
         document.getElementById('token-screen').style.display = 'none';
         document.getElementById('admin-content').style.display = 'block';
@@ -162,7 +189,9 @@
         sessionStorage.removeItem('gh_token');
         document.getElementById('admin-content').style.display = 'none';
         document.getElementById('token-screen').style.display = 'flex';
+        document.getElementById('passwordInput').value = '';
         document.getElementById('tokenInput').value = '';
+        document.getElementById('loginError').textContent = '';
     }
 
     // ---- GitHub API ----
@@ -177,7 +206,6 @@
             const data = await res.json();
             currentSHA = data.sha;
 
-            // TextDecoder instead of deprecated escape/unescape
             const bytes = Uint8Array.from(atob(data.content.replace(/\n/g, '')), c => c.charCodeAt(0));
             db = JSON.parse(new TextDecoder().decode(bytes));
 
@@ -195,17 +223,17 @@
         setStatus('⏳ שומר נתונים לענן...');
         const jsonStr = JSON.stringify(db, null, 2);
 
-        // TextEncoder instead of deprecated unescape/encodeURIComponent
         const bytes = new TextEncoder().encode(jsonStr);
         let binary = '';
         bytes.forEach(b => binary += String.fromCharCode(b));
         const content = btoa(binary);
 
         try {
+            const commitMsg = `Update menu (${db.items.length} items)`;
             const res = await fetch(`${API_BASE}/${DB_FILE}`, {
                 method: 'PUT',
                 headers: authHeaders(),
-                body: JSON.stringify({ message: 'Update menu', content, sha: currentSHA })
+                body: JSON.stringify({ message: commitMsg, content, sha: currentSHA })
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
@@ -219,10 +247,9 @@
         }
     }
 
-    // Uploads a compressed image to /images/ and returns the saved filename
     async function uploadImage(base64DataUrl) {
-        const filename = `img_${Date.now()}.jpg`;
-        const base64   = base64DataUrl.split(',')[1]; // strip "data:image/jpeg;base64,"
+        const filename = `img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.jpg`;
+        const base64   = base64DataUrl.split(',')[1];
         const res = await fetch(`${API_BASE}/images/${filename}`, {
             method: 'PUT',
             headers: authHeaders(),
@@ -336,7 +363,6 @@
         populateCategorySelect(item.category);
         populateTypes(item.types || []);
 
-        // Show existing image from GitHub (not base64)
         const existingImgSrc = item.image
             ? `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/images/${item.image}`
             : '';
@@ -357,7 +383,7 @@
         if (idx === -1) return;
 
         try {
-            let imageName = db.items[idx].image; // keep existing unless a new one was chosen
+            let imageName = db.items[idx].image;
             if (pendingImage) {
                 setStatus('⏳ מעלה תמונה...');
                 imageName = await uploadImage(pendingImage);
@@ -372,12 +398,19 @@
         }
     }
 
-    function deleteItem(id) {
+    async function deleteItem(id) {
         if (!confirm('האם למחוק מנה זו?')) return;
-        // If this item was being edited, clear the form
-        if (parseInt(document.getElementById('editId').value) === id) resetForm();
-        db.items = db.items.filter(i => i.id !== id);
-        saveToGitHub();
+        const backup = db.items.slice();
+        try {
+            if (parseInt(document.getElementById('editId').value) === id) resetForm();
+            db.items = db.items.filter(i => i.id !== id);
+            await saveToGitHub();
+        } catch (e) {
+            db.items = backup;
+            console.error(e);
+            setStatus('❌ שגיאה במחיקה — אנא נסה שוב');
+            renderItems();
+        }
     }
 
     function resetForm() {
@@ -427,8 +460,8 @@
                                 <strong>${escText(item.name)}</strong> — &#8362;${escText(String(item.price))}
                                 ${typesText ? `<div class="item-types">${escText(typesText)}</div>` : ''}
                             </div>
-                            <button class="btn-edit"   onclick="startEdit(${item.id})">ערוך</button>
-                            <button class="btn-delete" onclick="deleteItem(${item.id})">מחק</button>
+                            <button class="btn-edit"   data-id="${item.id}" data-action="edit">ערוך</button>
+                            <button class="btn-delete" data-id="${item.id}" data-action="delete">מחק</button>
                         </div>`;
                 }).join('');
 
@@ -442,6 +475,14 @@
     }
 
     // ---- Init ----
+    document.getElementById('accordion-container').addEventListener('click', e => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        const id = parseInt(btn.dataset.id);
+        if (btn.dataset.action === 'edit') startEdit(id);
+        else if (btn.dataset.action === 'delete') deleteItem(id);
+    });
+
     if (getToken()) {
         document.getElementById('token-screen').style.display = 'none';
         document.getElementById('admin-content').style.display = 'block';
