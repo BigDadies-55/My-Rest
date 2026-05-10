@@ -13,7 +13,6 @@
         .login-card h2 { margin-top: 0; font-size: 1.5rem; }
         .login-card p { color: #555; margin-bottom: 20px; }
         .login-card input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 1rem; margin-bottom: 12px; direction: ltr; text-align: left; }
-        .login-hint { font-size: 0.8rem; color: #999; margin-top: 15px; line-height: 1.5; }
 
         /* ---- Admin ---- */
         .admin-card { max-width: 820px; margin: auto; background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
@@ -67,25 +66,17 @@
 </head>
 <body>
 
-<!-- Token login screen — shown when no token is in sessionStorage -->
-<div id="token-screen" class="login-screen">
+<div id="login-screen" class="login-screen">
     <div class="login-card">
         <h2>🔐 כניסה לניהול</h2>
-        <p>הכנס סיסמא ואת ה-GitHub Personal Access Token שלך.</p>
+        <p>הכנס את הסיסמא כדי לנהל את התפריט.</p>
         <input type="password" id="passwordInput" placeholder="סיסמא" autocomplete="off"
-               onkeydown="if(event.key==='Enter') document.getElementById('tokenInput').focus()">
-        <input type="password" id="tokenInput" placeholder="ghp_..." autocomplete="off"
-               onkeydown="if(event.key==='Enter') submitToken()">
+               onkeydown="if(event.key==='Enter') login()">
         <div id="loginError" style="color:#e74c3c;font-size:0.85rem;min-height:1.2em;margin-bottom:6px;"></div>
-        <button class="btn btn-add" onclick="submitToken()">התחבר</button>
-        <p class="login-hint">
-            יצירת Token: GitHub → Settings → Developer settings →<br>
-            Personal access tokens → הרשאות נדרשות: <strong>repo</strong>
-        </p>
+        <button class="btn btn-add" onclick="login()">התחבר</button>
     </div>
 </div>
 
-<!-- Main admin UI — hidden until token is validated -->
 <div id="admin-content" style="display:none">
     <div class="admin-card">
         <div class="admin-header">
@@ -136,10 +127,14 @@
 </div>
 
 <script>
-    const REPO_OWNER = 'BigDadies-55';
-    const REPO_NAME  = 'My-Rest';
-    const DB_FILE    = 'menu_db.json';
-    const API_BASE   = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents`;
+    // ─── After deploying the Cloudflare Worker, paste its URL here ───
+    const WORKER_URL = 'https://my-rest-proxy.YOUR_SUBDOMAIN.workers.dev';
+    // ──────────────────────────────────────────────────────
+
+    const REPO_OWNER          = 'BigDadies-55';
+    const REPO_NAME           = 'My-Rest';
+    const DB_FILE             = 'menu_db.json';
+    const ADMIN_PASSWORD_HASH = '9a0006e03ef51caa741dc8412bb01e83d7ef606b65f3bbb9807c508977e7e918';
 
     let db           = { settings: {}, categories: [], items: [], types: [] };
     let currentSHA   = '';
@@ -147,29 +142,22 @@
 
     // ---- Auth ----
 
-    const ADMIN_PASSWORD_HASH = '9a0006e03ef51caa741dc8412bb01e83d7ef606b65f3bbb9807c508977e7e918';
-
     async function sha256(str) {
         const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
         return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
-    function getToken() { return sessionStorage.getItem('gh_token'); }
-
-    function authHeaders() {
-        return { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' };
+    function getHash()      { return sessionStorage.getItem('admin_auth'); }
+    function workerHeaders() {
+        return { 'Content-Type': 'application/json', 'X-Admin-Auth': getHash() };
     }
 
-    async function submitToken() {
+    async function login() {
         const password = document.getElementById('passwordInput').value;
-        const token    = document.getElementById('tokenInput').value.trim();
         const errorEl  = document.getElementById('loginError');
         errorEl.textContent = '';
 
-        if (!password || !token) {
-            errorEl.textContent = 'אנא מלא סיסמא ו-Token.';
-            return;
-        }
+        if (!password) { errorEl.textContent = 'אנא הכנס סיסמא.'; return; }
 
         const hash = await sha256(password);
         if (hash !== ADMIN_PASSWORD_HASH) {
@@ -179,29 +167,28 @@
             return;
         }
 
-        sessionStorage.setItem('gh_token', token);
-        document.getElementById('token-screen').style.display = 'none';
+        sessionStorage.setItem('admin_auth', hash);
+        document.getElementById('login-screen').style.display  = 'none';
         document.getElementById('admin-content').style.display = 'block';
         loadFromGitHub();
     }
 
     function logout() {
-        sessionStorage.removeItem('gh_token');
+        sessionStorage.removeItem('admin_auth');
         document.getElementById('admin-content').style.display = 'none';
-        document.getElementById('token-screen').style.display = 'flex';
-        document.getElementById('passwordInput').value = '';
-        document.getElementById('tokenInput').value = '';
-        document.getElementById('loginError').textContent = '';
+        document.getElementById('login-screen').style.display  = 'flex';
+        document.getElementById('passwordInput').value         = '';
+        document.getElementById('loginError').textContent      = '';
     }
 
-    // ---- GitHub API ----
+    // ---- GitHub API (via Worker) ----
 
     function setStatus(msg) { document.getElementById('statusMsg').textContent = msg; }
 
     async function loadFromGitHub() {
-        setStatus('⏳ מתחבר ל-GitHub...');
+        setStatus('⏳ מתחבר לענן...');
         try {
-            const res = await fetch(`${API_BASE}/${DB_FILE}`, { headers: authHeaders() });
+            const res = await fetch(`${WORKER_URL}/${DB_FILE}`, { headers: workerHeaders() });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             currentSHA = data.sha;
@@ -215,25 +202,21 @@
             renderItems();
         } catch (e) {
             console.error(e);
-            setStatus('❌ שגיאה בחיבור — בדוק את ה-Token ואת חיבור האינטרנט');
+            setStatus('❌ שגיאה בחיבור — בדוק את כתובת ה-Worker');
         }
     }
 
     async function saveToGitHub() {
         setStatus('⏳ שומר נתונים לענן...');
-        const jsonStr = JSON.stringify(db, null, 2);
-
-        const bytes = new TextEncoder().encode(jsonStr);
+        const bytes = new TextEncoder().encode(JSON.stringify(db, null, 2));
         let binary = '';
         bytes.forEach(b => binary += String.fromCharCode(b));
-        const content = btoa(binary);
 
         try {
-            const commitMsg = `Update menu (${db.items.length} items)`;
-            const res = await fetch(`${API_BASE}/${DB_FILE}`, {
-                method: 'PUT',
-                headers: authHeaders(),
-                body: JSON.stringify({ message: commitMsg, content, sha: currentSHA })
+            const res = await fetch(`${WORKER_URL}/${DB_FILE}`, {
+                method:  'PUT',
+                headers: workerHeaders(),
+                body:    JSON.stringify({ message: `Update menu (${db.items.length} items)`, content: btoa(binary), sha: currentSHA }),
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
@@ -250,10 +233,10 @@
     async function uploadImage(base64DataUrl) {
         const filename = `img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.jpg`;
         const base64   = base64DataUrl.split(',')[1];
-        const res = await fetch(`${API_BASE}/images/${filename}`, {
-            method: 'PUT',
-            headers: authHeaders(),
-            body: JSON.stringify({ message: `Add image ${filename}`, content: base64 })
+        const res = await fetch(`${WORKER_URL}/images/${filename}`, {
+            method:  'PUT',
+            headers: workerHeaders(),
+            body:    JSON.stringify({ message: `Add image ${filename}`, content: base64 }),
         });
         if (!res.ok) throw new Error(`Image upload failed: HTTP ${res.status}`);
         return filename;
@@ -269,8 +252,8 @@
             const img = new Image();
             img.src = e.target.result;
             img.onload = () => {
-                const canvas  = document.createElement('canvas');
-                const MAX_W   = 800;
+                const canvas = document.createElement('canvas');
+                const MAX_W  = 800;
                 let w = img.width, h = img.height;
                 if (w > MAX_W) { h = Math.round(h * MAX_W / w); w = MAX_W; }
                 canvas.width  = w;
@@ -318,14 +301,13 @@
     function validateForm() {
         const name  = document.getElementById('itemName').value.trim();
         const price = parseFloat(document.getElementById('itemPrice').value);
-        if (!name) { alert('אנא הכנס שם מנה'); return null; }
+        if (!name)                     { alert('אנא הכנס שם מנה');   return null; }
         if (isNaN(price) || price < 0) { alert('אנא הכנס מחיר תקין'); return null; }
         return {
-            name,
-            price,
+            name, price,
             category: document.getElementById('itemCategory').value,
             desc:     document.getElementById('itemDesc').value.trim(),
-            types:    getSelectedTypes()
+            types:    getSelectedTypes(),
         };
     }
 
@@ -368,10 +350,10 @@
             : '';
         showPreview(existingImgSrc);
 
-        document.getElementById('imageFile').value = '';
-        document.getElementById('addBtn').style.display    = 'none';
-        document.getElementById('updateBtn').style.display = 'block';
-        document.getElementById('cancelBtn').style.display = 'block';
+        document.getElementById('imageFile').value             = '';
+        document.getElementById('addBtn').style.display        = 'none';
+        document.getElementById('updateBtn').style.display     = 'block';
+        document.getElementById('cancelBtn').style.display     = 'block';
         document.getElementById('editor-form').scrollIntoView({ behavior: 'smooth' });
     }
 
@@ -447,7 +429,7 @@
             const itemsHtml = items.length === 0
                 ? `<p class="no-items">אין מנות בקטגוריה זו</p>`
                 : items.map(item => {
-                    const imgSrc = item.image
+                    const imgSrc    = item.image
                         ? `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/images/${escAttr(item.image)}`
                         : '';
                     const typesText = (item.types || []).join(' · ');
@@ -479,12 +461,12 @@
         const btn = e.target.closest('[data-action]');
         if (!btn) return;
         const id = parseInt(btn.dataset.id);
-        if (btn.dataset.action === 'edit') startEdit(id);
+        if (btn.dataset.action === 'edit')        startEdit(id);
         else if (btn.dataset.action === 'delete') deleteItem(id);
     });
 
-    if (getToken()) {
-        document.getElementById('token-screen').style.display = 'none';
+    if (getHash()) {
+        document.getElementById('login-screen').style.display  = 'none';
         document.getElementById('admin-content').style.display = 'block';
         loadFromGitHub();
     }
