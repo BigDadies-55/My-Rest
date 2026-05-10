@@ -71,9 +71,12 @@
 <div id="token-screen" class="login-screen">
     <div class="login-card">
         <h2>🔐 כניסה לניהול</h2>
-        <p>הכנס את ה-GitHub Personal Access Token שלך כדי לנהל את התפריט.</p>
+        <p>הכנס סיסמא ואת ה-GitHub Personal Access Token שלך.</p>
+        <input type="password" id="passwordInput" placeholder="סיסמא" autocomplete="off"
+               onkeydown="if(event.key==='Enter') document.getElementById('tokenInput').focus()">
         <input type="password" id="tokenInput" placeholder="ghp_..." autocomplete="off"
                onkeydown="if(event.key==='Enter') submitToken()">
+        <div id="loginError" style="color:#e74c3c;font-size:0.85rem;min-height:1.2em;margin-bottom:6px;"></div>
         <button class="btn btn-add" onclick="submitToken()">התחבר</button>
         <p class="login-hint">
             יצירת Token: GitHub → Settings → Developer settings →<br>
@@ -144,15 +147,38 @@
 
     // ---- Auth ----
 
+    const ADMIN_PASSWORD_HASH = '9a0006e03ef51caa741dc8412bb01e83d7ef606b65f3bbb9807c508977e7e918';
+
+    async function sha256(str) {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
     function getToken() { return sessionStorage.getItem('gh_token'); }
 
     function authHeaders() {
         return { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' };
     }
 
-    function submitToken() {
-        const token = document.getElementById('tokenInput').value.trim();
-        if (!token) return;
+    async function submitToken() {
+        const password = document.getElementById('passwordInput').value;
+        const token    = document.getElementById('tokenInput').value.trim();
+        const errorEl  = document.getElementById('loginError');
+        errorEl.textContent = '';
+
+        if (!password || !token) {
+            errorEl.textContent = 'אנא מלא סיסמא ו-Token.';
+            return;
+        }
+
+        const hash = await sha256(password);
+        if (hash !== ADMIN_PASSWORD_HASH) {
+            errorEl.textContent = '❌ סיסמא שגויה.';
+            document.getElementById('passwordInput').value = '';
+            document.getElementById('passwordInput').focus();
+            return;
+        }
+
         sessionStorage.setItem('gh_token', token);
         document.getElementById('token-screen').style.display = 'none';
         document.getElementById('admin-content').style.display = 'block';
@@ -163,7 +189,9 @@
         sessionStorage.removeItem('gh_token');
         document.getElementById('admin-content').style.display = 'none';
         document.getElementById('token-screen').style.display = 'flex';
+        document.getElementById('passwordInput').value = '';
         document.getElementById('tokenInput').value = '';
+        document.getElementById('loginError').textContent = '';
     }
 
     // ---- GitHub API ----
