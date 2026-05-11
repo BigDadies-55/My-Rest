@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KOJI - Japanese Art Dining</title>
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600&family=Cinzel:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root { --gold: #b38e5d; --bg: #fcfbf7; --text: #1a1a1a; --white: #ffffff; }
+        body { font-family: 'Assistant', sans-serif; background: var(--bg); color: var(--text); margin: 0; direction: rtl; text-align: center; padding-bottom: 80px; }
+
+        header { padding: 40px 15px 20px; background: var(--white); border-bottom: 1px solid #eee; }
+        .logo-img { height: 80px; margin-bottom: 10px; }
+        .main-title { font-family: 'Cinzel', serif; margin: 0; font-size: 1.8rem; letter-spacing: 2px; }
+        .address-text { font-size: 0.85rem; color: #888; margin-top: 5px; font-weight: 300; }
+
+        .sub-menu { display: flex; justify-content: center; background: rgba(255,255,255,0.95); backdrop-filter: blur(5px); position: sticky; top: 0; z-index: 100; border-bottom: 1px solid #eee; padding: 10px; overflow-x: auto; gap: 10px; }
+        .sub-menu::-webkit-scrollbar { display: none; }
+        .filter-btn { background: none; border: none; padding: 8px 18px; cursor: pointer; font-weight: 600; font-size: 0.95rem; color: #555; transition: 0.3s; white-space: nowrap; }
+        .filter-btn.active { color: var(--gold); border-bottom: 2px solid var(--gold); }
+
+        .container { max-width: 1200px; margin: 20px auto; padding: 0 15px; }
+        .menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; }
+
+        .card { background: var(--white); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; cursor: pointer; transition: 0.3s ease; border: 1px solid #e0e0e0; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 4px 10px rgba(0,0,0,0.05); border-color: #d0d0d0; }
+
+        .img-box { height: 200px; overflow: hidden; background: #f9f9f9; border-bottom: 1px solid #eee; }
+        .img-box img { width: 100%; height: 100%; object-fit: cover; transition: 0.5s ease; }
+        .card:hover .img-box img { transform: scale(1.03); }
+
+        .content { padding: 15px; display: flex; flex-direction: column; flex-grow: 1; }
+        .type-labels { display: flex; justify-content: center; gap: 5px; margin-bottom: 8px; flex-wrap: wrap; }
+        .type-tag { font-size: 0.65rem; background: #fdfaf5; padding: 2px 8px; border-radius: 4px; color: var(--gold); font-weight: 700; border: 1px solid #eee; }
+        .card-name { font-family: 'Cinzel', serif; margin: 5px 0; font-size: 1.1rem; }
+        .card-desc { font-size: 0.85rem; color: #777; margin: 5px 0 15px 0; line-height: 1.4; height: 2.8em; overflow: hidden; }
+        .price { font-weight: 700; font-size: 1.1rem; margin-top: auto; padding-top: 10px; border-top: 1px dashed #eee; color: var(--text); }
+
+        .floating-actions { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 12px; z-index: 1000; background: rgba(255,255,255,0.9); padding: 10px 20px; border-radius: 50px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); backdrop-filter: blur(10px); border: 1px solid rgba(179,142,93,0.2); width: max-content; }
+        .action-btn { text-decoration: none; font-weight: 600; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; padding: 8px 18px; border-radius: 30px; transition: 0.3s; }
+        .btn-order-float { background: var(--gold); color: white; }
+        .btn-phone-float { background: #f8f9fa; color: var(--text); border: 1px solid #ddd; }
+        .action-btn:active { transform: scale(0.95); }
+
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: center; }
+        .modal.show { display: flex; }
+        .modal img { max-width: 90%; max-height: 80vh; border-radius: 10px; border: 2px solid var(--gold); }
+
+        .error-msg { text-align: center; padding: 60px 20px; color: #999; grid-column: 1/-1; font-size: 1rem; }
+    </style>
+</head>
+<body>
+
+<header>
+    <img id="mainLogo" src="" class="logo-img" alt="">
+    <h1 id="mainTitle" class="main-title"></h1>
+    <div id="mainAddress" class="address-text"></div>
+</header>
+
+<nav class="sub-menu" id="filter-nav" aria-label="קטגוריות תפריט"></nav>
+
+<div class="container">
+    <div id="menu-display" class="menu-grid"></div>
+</div>
+
+<div class="floating-actions" id="floating-bar"></div>
+
+<div id="imageModal" class="modal" role="dialog" aria-modal="true">
+    <img id="fullImg" alt="">
+</div>
+
+<script>
+    const REPO = 'BigDadies-55/My-Rest';
+    const DB_URL = `https://raw.githubusercontent.com/${REPO}/main/menu_db.json`;
+    let db = { settings: {}, categories: [], items: [] };
+    let currentCat = '';
+
+    // Escape user data before inserting into HTML to prevent XSS
+    function esc(s) {
+        return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    async function load() {
+        // Event delegation set up once — survives innerHTML replacements inside the containers
+        document.getElementById('filter-nav').addEventListener('click', e => {
+            const btn = e.target.closest('.filter-btn');
+            if (btn) changeCat(btn.dataset.cat);
+        });
+
+        document.getElementById('menu-display').addEventListener('click', e => {
+            const card = e.target.closest('.card');
+            if (card && card.dataset.img) openModal(card.dataset.img, card.dataset.name);
+        });
+
+        document.getElementById('imageModal').addEventListener('click', () => {
+            document.getElementById('imageModal').classList.remove('show');
+        });
+
+        try {
+            const res = await fetch(`${DB_URL}?v=${Date.now()}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            db = await res.json();
+
+            document.getElementById('mainTitle').textContent = db.settings.name || '';
+            document.getElementById('mainAddress').textContent = db.settings.address || '';
+
+            if (db.settings.logo) {
+                const logo = document.getElementById('mainLogo');
+                logo.src = `https://raw.githubusercontent.com/${REPO}/main/images/${db.settings.logo}`;
+                logo.alt = db.settings.name || 'לוגו';
+            }
+
+            const barParts = [];
+            if (db.settings.phone) {
+                barParts.push(`<a href="tel:${esc(db.settings.phone)}" class="action-btn btn-phone-float">📞 התקשרו</a>`);
+            }
+            if (db.settings.orderLink) {
+                barParts.push(`<a href="${esc(db.settings.orderLink)}" target="_blank" rel="noopener noreferrer" class="action-btn btn-order-float">🛵 הזמנה אונליין</a>`);
+            }
+            document.getElementById('floating-bar').innerHTML = barParts.join('');
+
+            if (db.categories.length > 0) {
+                currentCat = db.categories[0];
+                render();
+            }
+        } catch (e) {
+            console.error(e);
+            document.getElementById('menu-display').innerHTML =
+                '<p class="error-msg">לא ניתן לטעון את התפריט כרגע. אנא נסה שוב מאוחר יותר.</p>';
+        }
+    }
+
+    function render() {
+        document.getElementById('filter-nav').innerHTML = db.categories.map(c =>
+            `<button class="filter-btn${c === currentCat ? ' active' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`
+        ).join('');
+
+        const items = db.items.filter(i => i.category === currentCat);
+
+        if (items.length === 0) {
+            document.getElementById('menu-display').innerHTML = '<p class="error-msg">אין מנות בקטגוריה זו.</p>';
+            return;
+        }
+
+        const imgBase = `https://raw.githubusercontent.com/${REPO}/main/images/`;
+        const defaultDesc = 'מנה יפנית מסורתית מחומרי הגלם הטריים ביותר.';
+
+        document.getElementById('menu-display').innerHTML = items.map(i => {
+            const imgSrc = i.image ? `${imgBase}${esc(i.image)}` : '';
+            const typeHtml = (i.types || []).map(t => `<span class="type-tag">${esc(t)}</span>`).join('');
+            return `
+                <div class="card" data-img="${imgSrc}" data-name="${esc(i.name)}" role="button" tabindex="0" aria-label="${esc(i.name)}">
+                    <div class="img-box"><img src="${imgSrc}" loading="lazy" alt="${esc(i.name)}"></div>
+                    <div class="content">
+                        <div class="type-labels">${typeHtml}</div>
+                        <h3 class="card-name">${esc(i.name)}</h3>
+                        <p class="card-desc">${esc(i.desc || defaultDesc)}</p>
+                        <div class="price">&#8362;${esc(String(i.price))}</div>
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    function changeCat(c) {
+        currentCat = c;
+        render();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function openModal(src, name) {
+        if (!src) return;
+        document.getElementById('fullImg').src = src;
+        document.getElementById('fullImg').alt = name || 'תמונת מנה';
+        document.getElementById('imageModal').classList.add('show');
+    }
+
+    load();
+</script>
+</body>
+</html>
