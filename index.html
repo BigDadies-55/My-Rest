@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KOJI - Japanese Art Dining</title>
+    <meta name="description" content="KOJI - מסעדת יפנית עם תפריט סושי ומנות ייחודיות. הזמינו אונליין או התקשרו עכשיו.">
+    <meta property="og:title" content="KOJI - Japanese Art Dining">
+    <meta property="og:description" content="חוויית אוכל יפנית ייחודית עם חומרי גלם טריים ואמנות קולינרית.">
+    <meta property="og:type" content="restaurant.restaurant">
     <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600&family=Cinzel:wght@700&display=swap" rel="stylesheet">
     <style>
         /* ── Variables ── */
@@ -48,6 +52,9 @@
         .img-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: center; }
         .img-modal.show { display: flex; }
         .img-modal img { max-width: 90%; max-height: 80vh; border-radius: 10px; border: 2px solid var(--gold); }
+        .modal-close { position: absolute; top: 16px; left: 16px; background: rgba(255,255,255,0.15); border: none; color: white; font-size: 1.5rem; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; line-height: 1; }
+        .modal-close:hover { background: rgba(255,255,255,0.3); }
+        .img-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #f0f0f0; color: #bbb; font-size: 2.5rem; }
 
         .error-msg { text-align: center; padding: 60px 20px; color: #999; grid-column: 1/-1; font-size: 1rem; }
 
@@ -134,7 +141,8 @@
 
     <div class="floating-actions" id="floating-bar"></div>
 
-    <div id="imageModal" class="img-modal" role="dialog" aria-modal="true">
+    <div id="imageModal" class="img-modal" role="dialog" aria-modal="true" aria-label="תמונה מוגדלת">
+        <button class="modal-close" onclick="document.getElementById('imageModal').classList.remove('show')" aria-label="סגור">✕</button>
         <img id="fullImg" alt="">
     </div>
 </div>
@@ -431,7 +439,7 @@
             const typeHtml = (i.types || []).map(t => `<span class="type-tag">${esc(t)}</span>`).join('');
             return `
                 <div class="card" data-img="${imgSrc}" data-name="${esc(i.name)}" role="button" tabindex="0" aria-label="${esc(i.name)}">
-                    <div class="img-box"><img src="${imgSrc}" loading="lazy" alt="${esc(i.name)}"></div>
+                    <div class="img-box">${imgSrc ? `<img src="${imgSrc}" loading="lazy" alt="${esc(i.name)}" onerror="this.parentElement.innerHTML='<div class=\\"img-placeholder\\">🍣</div>'">` : '<div class="img-placeholder">🍣</div>'}</div>
                     <div class="content">
                         <div class="type-labels">${typeHtml}</div>
                         <h3 class="card-name">${esc(i.name)}</h3>
@@ -609,7 +617,7 @@
                     const imgSrc   = resolveImg(item);
                     const typesStr = (item.types || []).join(' · ');
                     return `<div class="item-row">
-                        ${imgSrc ? `<img src="${esc(imgSrc)}" class="item-img" alt="${esc(item.name)}">` : `<div class="item-img"></div>`}
+                        ${imgSrc ? `<img src="${esc(imgSrc)}" class="item-img" alt="${esc(item.name)}" onerror="this.style.display='none'">` : `<div class="item-img"></div>`}
                         <div class="item-info">
                             <strong>${esc(item.name)}</strong> — &#8362;${esc(String(item.price))}
                             ${typesStr ? `<div class="item-types">${esc(typesStr)}</div>` : ''}
