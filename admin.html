@@ -7,15 +7,15 @@
     <style>
         body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 20px; direction: rtl; margin: 0; }
 
-        /* ---- Login screen ---- */
-        .login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; box-sizing: border-box; }
+        .screen { display: none; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; box-sizing: border-box; }
+        .screen.active { display: flex; }
         .login-card { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); max-width: 420px; width: 100%; text-align: center; }
         .login-card h2 { margin-top: 0; font-size: 1.5rem; }
-        .login-card p { color: #555; margin-bottom: 20px; }
-        .login-card input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 1rem; margin-bottom: 12px; direction: ltr; text-align: left; }
-        .login-hint { font-size: 0.8rem; color: #999; margin-top: 15px; line-height: 1.5; }
+        .login-card p  { color: #555; margin-bottom: 20px; font-size: 0.95rem; }
+        .login-card input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 1rem; margin-bottom: 12px; }
+        .login-card input[type=email]    { direction: ltr; text-align: left; }
+        .login-card input[type=password] { direction: ltr; text-align: left; }
 
-        /* ---- Admin ---- */
         .admin-card { max-width: 820px; margin: auto; background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
         .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 15px; }
         .status-bar { background: #2c3e50; color: white; padding: 10px 15px; border-radius: 8px; font-size: 0.9em; flex-grow: 1; }
@@ -41,9 +41,10 @@
 
         .btn { width: 100%; padding: 13px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; font-size: 0.95rem; transition: opacity 0.2s; }
         .btn:hover { opacity: 0.88; }
-        .btn-add { background: #27ae60; color: white; }
+        .btn-add    { background: #27ae60; color: white; }
         .btn-update { background: #2980b9; color: white; display: none; }
         .btn-cancel { background: #ecf0f1; color: #333; display: none; margin-top: 8px; }
+        .btn-import { background: #8e44ad; color: white; margin-top: 8px; }
         .btn-logout { background: #e74c3c; color: white; padding: 9px 18px; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85rem; white-space: nowrap; }
 
         .category-group { margin-top: 10px; border: 1px solid #eee; border-radius: 10px; overflow: hidden; }
@@ -52,12 +53,13 @@
         .category-group.active .category-content { display: block; }
         .item-row { display: flex; align-items: center; padding: 12px 15px; border-bottom: 1px solid #f1f1f1; gap: 12px; }
         .item-row:last-child { border-bottom: none; }
-        .item-img { width: 52px; height: 52px; object-fit: cover; border-radius: 8px; flex-shrink: 0; background: #eee; }
+        .item-img  { width: 52px; height: 52px; object-fit: cover; border-radius: 8px; flex-shrink: 0; background: #eee; }
         .item-info { flex-grow: 1; font-size: 0.95rem; }
         .item-types { font-size: 0.75rem; color: #b38e5d; margin-top: 3px; }
-        .btn-edit { background: #f39c12; color: white; border: none; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+        .btn-edit   { background: #f39c12; color: white; border: none; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
         .btn-delete { background: #e74c3c; color: white; border: none; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
         .no-items { text-align: center; padding: 25px; color: #bbb; font-style: italic; }
+        .error { color: #e74c3c; font-size: 0.85rem; min-height: 1.2em; margin-bottom: 6px; }
 
         @media (max-width: 560px) {
             .form-and-preview { grid-template-columns: 1fr; }
@@ -67,35 +69,29 @@
 </head>
 <body>
 
-<!-- Token login screen — shown when no token is in sessionStorage -->
-<div id="token-screen" class="login-screen">
+<!-- מסך כניסה -->
+<div id="login-screen" class="screen active">
     <div class="login-card">
         <h2>🔐 כניסה לניהול</h2>
-        <p>הכנס סיסמא ואת ה-GitHub Personal Access Token שלך.</p>
-        <input type="password" id="passwordInput" placeholder="סיסמא" autocomplete="off"
-               onkeydown="if(event.key==='Enter') document.getElementById('tokenInput').focus()">
-        <input type="password" id="tokenInput" placeholder="ghp_..." autocomplete="off"
-               onkeydown="if(event.key==='Enter') submitToken()">
-        <div id="loginError" style="color:#e74c3c;font-size:0.85rem;min-height:1.2em;margin-bottom:6px;"></div>
-        <button class="btn btn-add" onclick="submitToken()">התחבר</button>
-        <p class="login-hint">
-            יצירת Token: GitHub → Settings → Developer settings →<br>
-            Personal access tokens → הרשאות נדרשות: <strong>repo</strong>
-        </p>
+        <p>הכנס אימייל וסיסמא שהוגדרו ב-Firebase.</p>
+        <input type="email"    id="emailInput"    placeholder="אימייל" onkeydown="if(event.key==='Enter') document.getElementById('passwordInput').focus()">
+        <input type="password" id="passwordInput" placeholder="סיסמא" onkeydown="if(event.key==='Enter') login()">
+        <div id="loginError" class="error"></div>
+        <button class="btn btn-add" onclick="login()">התחבר</button>
     </div>
 </div>
 
-<!-- Main admin UI — hidden until token is validated -->
-<div id="admin-content" style="display:none">
+<!-- ממשק ניהול -->
+<div id="admin-screen" style="display:none">
     <div class="admin-card">
         <div class="admin-header">
             <div class="status-bar" id="statusMsg">מתחבר...</div>
             <button class="btn-logout" onclick="logout()">התנתק</button>
         </div>
-        <h2 style="margin-top:0">🛠️ ניהול תפריט מבוסס ענן</h2>
+        <h2 style="margin-top:0">🛠️ ניהול תפריט</h2>
 
         <div id="editor-form">
-            <input type="hidden" id="editId">
+            <input type="hidden" id="editKey">
             <div class="form-and-preview">
                 <div class="form-grid">
                     <div>
@@ -125,9 +121,10 @@
                     <input type="file" id="imageFile" accept="image/*" style="display:none" onchange="handleFile(this)">
                 </div>
             </div>
-            <button id="addBtn" class="btn btn-add" onclick="addItem()">➕ הוסף ושמור לענן</button>
-            <button id="updateBtn" class="btn btn-update" onclick="updateItem()">💾 שמור שינויים בענן</button>
+            <button id="addBtn"    class="btn btn-add"    onclick="addItem()">➕ הוסף ושמור</button>
+            <button id="updateBtn" class="btn btn-update" onclick="updateItem()">💾 שמור שינויים</button>
             <button id="cancelBtn" class="btn btn-cancel" onclick="resetForm()">ביטול</button>
+            <button id="importBtn" class="btn btn-import" onclick="importFromGitHub()" title="ייבוא חד-פעמי מ-GitHub">📥 ייבוא נתונים קיימים מ-GitHub</button>
         </div>
 
         <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
@@ -135,135 +132,126 @@
     </div>
 </div>
 
-<script>
-    const REPO_OWNER = 'BigDadies-55';
-    const REPO_NAME  = 'My-Rest';
-    const DB_FILE    = 'menu_db.json';
-    const API_BASE   = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents`;
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
 
-    let db           = { settings: {}, categories: [], items: [], types: [] };
-    let currentSHA   = '';
-    let pendingImage = null; // base64 data URL of a newly selected image, null if unchanged
+<script>
+    // ── הכנס כאן את פרטי הפרויקט מ-Firebase Console ─────────────────────
+    const firebaseConfig = {
+        apiKey:        'YOUR_API_KEY',
+        authDomain:    'YOUR_PROJECT_ID.firebaseapp.com',
+        databaseURL:   'https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com',
+        storageBucket: 'YOUR_PROJECT_ID.appspot.com',
+    };
+    // ─────────────────────────────────────────────────────────────────────
+
+    firebase.initializeApp(firebaseConfig);
+    const auth     = firebase.auth();
+    const menuRef  = firebase.database().ref('menu');
+    const storage  = firebase.storage();
+
+    const GITHUB_RAW = 'https://raw.githubusercontent.com/BigDadies-55/My-Rest/main/menu_db.json';
+
+    let menu         = { settings: {}, categories: [], items: {}, types: [] };
+    let pendingImage = null;
 
     // ---- Auth ----
 
-    const ADMIN_PASSWORD_HASH = '9a0006e03ef51caa741dc8412bb01e83d7ef606b65f3bbb9807c508977e7e918';
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            document.getElementById('login-screen').classList.remove('active');
+            document.getElementById('admin-screen').style.display = 'block';
+            loadFromFirebase();
+        } else {
+            document.getElementById('admin-screen').style.display = 'none';
+            document.getElementById('login-screen').classList.add('active');
+        }
+    });
 
-    async function sha256(str) {
-        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-
-    function getToken() { return sessionStorage.getItem('gh_token'); }
-
-    function authHeaders() {
-        return { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' };
-    }
-
-    async function submitToken() {
+    async function login() {
+        const email    = document.getElementById('emailInput').value.trim();
         const password = document.getElementById('passwordInput').value;
-        const token    = document.getElementById('tokenInput').value.trim();
         const errorEl  = document.getElementById('loginError');
         errorEl.textContent = '';
-
-        if (!password || !token) {
-            errorEl.textContent = 'אנא מלא סיסמא ו-Token.';
-            return;
-        }
-
-        const hash = await sha256(password);
-        if (hash !== ADMIN_PASSWORD_HASH) {
-            errorEl.textContent = '❌ סיסמא שגויה.';
+        if (!email || !password) { errorEl.textContent = 'אנא מלא אימייל וסיסמא.'; return; }
+        try {
+            await auth.signInWithEmailAndPassword(email, password);
+        } catch {
+            errorEl.textContent = '❌ אימייל או סיסמא שגויים.';
             document.getElementById('passwordInput').value = '';
-            document.getElementById('passwordInput').focus();
-            return;
         }
-
-        sessionStorage.setItem('gh_token', token);
-        document.getElementById('token-screen').style.display = 'none';
-        document.getElementById('admin-content').style.display = 'block';
-        loadFromGitHub();
     }
 
-    function logout() {
-        sessionStorage.removeItem('gh_token');
-        document.getElementById('admin-content').style.display = 'none';
-        document.getElementById('token-screen').style.display = 'flex';
-        document.getElementById('passwordInput').value = '';
-        document.getElementById('tokenInput').value = '';
-        document.getElementById('loginError').textContent = '';
-    }
+    function logout() { auth.signOut(); }
 
-    // ---- GitHub API ----
+    // ---- Firebase DB ----
 
     function setStatus(msg) { document.getElementById('statusMsg').textContent = msg; }
 
-    async function loadFromGitHub() {
-        setStatus('⏳ מתחבר ל-GitHub...');
+    async function loadFromFirebase() {
+        setStatus('⏳ מתחבר ל-Firebase...');
         try {
-            const res = await fetch(`${API_BASE}/${DB_FILE}`, { headers: authHeaders() });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            currentSHA = data.sha;
-
-            // TextDecoder instead of deprecated escape/unescape
-            const bytes = Uint8Array.from(atob(data.content.replace(/\n/g, '')), c => c.charCodeAt(0));
-            db = JSON.parse(new TextDecoder().decode(bytes));
-
-            setStatus('✅ מחובר ומסונכרן לענן');
+            const snap = await menuRef.once('value');
+            menu = snap.val() || { settings: {}, categories: [], items: {}, types: [] };
+            setStatus('✅ מחובר ומסונכרן');
             populateCategorySelect();
             populateTypes();
             renderItems();
         } catch (e) {
             console.error(e);
-            setStatus('❌ שגיאה בחיבור — בדוק את ה-Token ואת חיבור האינטרנט');
+            setStatus('❌ שגיאה בחיבור — בדוק את הגדרות Firebase');
         }
     }
 
-    async function saveToGitHub() {
-        setStatus('⏳ שומר נתונים לענן...');
-        const jsonStr = JSON.stringify(db, null, 2);
-
-        // TextEncoder instead of deprecated unescape/encodeURIComponent
-        const bytes = new TextEncoder().encode(jsonStr);
-        let binary = '';
-        bytes.forEach(b => binary += String.fromCharCode(b));
-        const content = btoa(binary);
-
+    async function saveToFirebase() {
+        setStatus('⏳ שומר...');
         try {
-            const itemNames = db.items.map(i => i.name).join(', ');
-            const commitMsg = `Update menu (${db.items.length} items)`;
-            const res = await fetch(`${API_BASE}/${DB_FILE}`, {
-                method: 'PUT',
-                headers: authHeaders(),
-                body: JSON.stringify({ message: commitMsg, content, sha: currentSHA })
-            });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            currentSHA = data.content.sha;
+            await menuRef.set(menu);
             setStatus('✅ נשמר בהצלחה!');
             renderItems();
         } catch (e) {
             console.error(e);
-            setStatus('❌ שגיאת שמירה — אנא נסה שוב');
-            alert('שגיאה בשמירה לענן. אנא נסה שוב.');
+            setStatus('❌ שגיאת שמירה');
+            throw e;
         }
     }
 
-    // Uploads a compressed image to /images/ and returns the saved filename
-    async function uploadImage(base64DataUrl) {
-        const filename = `img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.jpg`;
-        const base64   = base64DataUrl.split(',')[1]; // strip "data:image/jpeg;base64,"
-        const res = await fetch(`${API_BASE}/images/${filename}`, {
-            method: 'PUT',
-            headers: authHeaders(),
-            body: JSON.stringify({ message: `Add image ${filename}`, content: base64 })
-        });
-        if (!res.ok) throw new Error(`Image upload failed: HTTP ${res.status}`);
-        return filename;
+    async function importFromGitHub() {
+        if (!confirm('ייבוא ידרוס את הנתונים הנוכחיים ב-Firebase. להמשיך?')) return;
+        setStatus('⏳ מייבא נתונים מ-GitHub...');
+        try {
+            const res  = await fetch(`${GITHUB_RAW}?v=${Date.now()}`);
+            const data = await res.json();
+            const itemsObj = {};
+            (data.items || []).forEach(item => { itemsObj[`item_${item.id}`] = item; });
+            menu = {
+                settings:   data.settings   || {},
+                categories: data.categories || [],
+                types:      data.types       || [],
+                items:      itemsObj,
+            };
+            await menuRef.set(menu);
+            setStatus('✅ ייבוא הושלם בהצלחה!');
+            document.getElementById('importBtn').style.display = 'none';
+            populateCategorySelect();
+            populateTypes();
+            renderItems();
+        } catch (e) {
+            console.error(e);
+            setStatus('❌ שגיאה בייבוא');
+        }
     }
 
-    // ---- Image picker ----
+    async function uploadImage(base64DataUrl) {
+        const filename = `images/img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.jpg`;
+        const base64   = base64DataUrl.split(',')[1];
+        const ref      = storage.ref(filename);
+        await ref.putString(base64, 'base64', { contentType: 'image/jpeg' });
+        return await ref.getDownloadURL();
+    }
 
     function handleFile(input) {
         const file = input.files[0];
@@ -273,8 +261,8 @@
             const img = new Image();
             img.src = e.target.result;
             img.onload = () => {
-                const canvas  = document.createElement('canvas');
-                const MAX_W   = 800;
+                const canvas = document.createElement('canvas');
+                const MAX_W  = 800;
                 let w = img.width, h = img.height;
                 if (w > MAX_W) { h = Math.round(h * MAX_W / w); w = MAX_W; }
                 canvas.width  = w;
@@ -295,20 +283,28 @@
         ph.style.display    = src ? 'none'  : 'block';
     }
 
-    // ---- Form helpers ----
-
     function escAttr(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
     function escText(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+    function itemsArray() {
+        return Object.values(menu.items || {}).sort((a, b) => a.id - b.id);
+    }
+
+    function resolveImg(item) {
+        if (item.imageUrl) return item.imageUrl;
+        if (item.image)    return `https://raw.githubusercontent.com/BigDadies-55/My-Rest/main/images/${item.image}`;
+        return '';
+    }
+
     function populateCategorySelect(selected) {
         const sel = document.getElementById('itemCategory');
-        sel.innerHTML = db.categories.map(c =>
+        sel.innerHTML = (menu.categories || []).map(c =>
             `<option value="${escAttr(c)}"${c === selected ? ' selected' : ''}>${escText(c)}</option>`
         ).join('');
     }
 
     function populateTypes(selectedTypes = []) {
-        document.getElementById('typesGroup').innerHTML = (db.types || []).map(t =>
+        document.getElementById('typesGroup').innerHTML = (menu.types || []).map(t =>
             `<label class="type-checkbox">
                 <input type="checkbox" value="${escAttr(t)}"${selectedTypes.includes(t) ? ' checked' : ''}> ${escText(t)}
             </label>`
@@ -322,58 +318,49 @@
     function validateForm() {
         const name  = document.getElementById('itemName').value.trim();
         const price = parseFloat(document.getElementById('itemPrice').value);
-        if (!name) { alert('אנא הכנס שם מנה'); return null; }
+        if (!name)                     { alert('אנא הכנס שם מנה');    return null; }
         if (isNaN(price) || price < 0) { alert('אנא הכנס מחיר תקין'); return null; }
         return {
-            name,
-            price,
+            name, price,
             category: document.getElementById('itemCategory').value,
             desc:     document.getElementById('itemDesc').value.trim(),
-            types:    getSelectedTypes()
+            types:    getSelectedTypes(),
         };
     }
-
-    // ---- CRUD ----
 
     async function addItem() {
         const fields = validateForm();
         if (!fields) return;
         try {
-            let imageName = '';
+            let imageUrl = '';
             if (pendingImage) {
                 setStatus('⏳ מעלה תמונה...');
-                imageName = await uploadImage(pendingImage);
+                imageUrl = await uploadImage(pendingImage);
             }
-            db.items.push({ id: Date.now(), ...fields, image: imageName });
-            await saveToGitHub();
+            const id  = Date.now();
+            const key = `item_${id}`;
+            menu.items = menu.items || {};
+            menu.items[key] = { id, ...fields, imageUrl };
+            await saveToFirebase();
             resetForm();
         } catch (e) {
             console.error(e);
-            setStatus('❌ שגיאה בהעלאת תמונה');
-            alert('שגיאה בהעלאת התמונה. אנא נסה שוב.');
+            setStatus('❌ שגיאה');
         }
     }
 
-    function startEdit(id) {
-        const item = db.items.find(i => i.id === id);
+    function startEdit(key) {
+        const item = menu.items[key];
         if (!item) return;
-
-        document.getElementById('editId').value    = item.id;
+        document.getElementById('editKey').value   = key;
         document.getElementById('itemName').value  = item.name;
         document.getElementById('itemPrice').value = item.price;
         document.getElementById('itemDesc').value  = item.desc || '';
         pendingImage = null;
-
         populateCategorySelect(item.category);
         populateTypes(item.types || []);
-
-        // Show existing image from GitHub (not base64)
-        const existingImgSrc = item.image
-            ? `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/images/${item.image}`
-            : '';
-        showPreview(existingImgSrc);
-
-        document.getElementById('imageFile').value = '';
+        showPreview(resolveImg(item));
+        document.getElementById('imageFile').value         = '';
         document.getElementById('addBtn').style.display    = 'none';
         document.getElementById('updateBtn').style.display = 'block';
         document.getElementById('cancelBtn').style.display = 'block';
@@ -383,43 +370,40 @@
     async function updateItem() {
         const fields = validateForm();
         if (!fields) return;
-        const id  = parseInt(document.getElementById('editId').value);
-        const idx = db.items.findIndex(i => i.id === id);
-        if (idx === -1) return;
-
+        const key = document.getElementById('editKey').value;
+        if (!key || !menu.items[key]) return;
         try {
-            let imageName = db.items[idx].image; // keep existing unless a new one was chosen
+            let imageUrl = menu.items[key].imageUrl || '';
             if (pendingImage) {
                 setStatus('⏳ מעלה תמונה...');
-                imageName = await uploadImage(pendingImage);
+                imageUrl = await uploadImage(pendingImage);
             }
-            db.items[idx] = { ...db.items[idx], ...fields, image: imageName };
-            await saveToGitHub();
+            menu.items[key] = { ...menu.items[key], ...fields, imageUrl };
+            await saveToFirebase();
             resetForm();
         } catch (e) {
             console.error(e);
             setStatus('❌ שגיאה בשמירה');
-            alert('שגיאה בשמירה. אנא נסה שוב.');
         }
     }
 
-    async function deleteItem(id) {
+    async function deleteItem(key) {
         if (!confirm('האם למחוק מנה זו?')) return;
-        const backup = db.items.slice();
+        const backup = { ...menu.items };
         try {
-            if (parseInt(document.getElementById('editId').value) === id) resetForm();
-            db.items = db.items.filter(i => i.id !== id);
-            await saveToGitHub();
+            if (document.getElementById('editKey').value === key) resetForm();
+            delete menu.items[key];
+            await saveToFirebase();
         } catch (e) {
-            db.items = backup;
+            menu.items = backup;
             console.error(e);
-            setStatus('❌ שגיאה במחיקה — אנא נסה שוב');
+            setStatus('❌ שגיאה במחיקה');
             renderItems();
         }
     }
 
     function resetForm() {
-        document.getElementById('editId').value    = '';
+        document.getElementById('editKey').value   = '';
         document.getElementById('itemName').value  = '';
         document.getElementById('itemPrice').value = '';
         document.getElementById('itemDesc').value  = '';
@@ -433,43 +417,36 @@
         document.getElementById('cancelBtn').style.display = 'none';
     }
 
-    // ---- Render accordion ----
-
     function renderItems() {
         const container = document.getElementById('accordion-container');
         container.innerHTML = '';
-
-        const grouped = db.items.reduce((acc, i) => {
-            (acc[i.category] = acc[i.category] || []).push(i);
+        const allItems = itemsArray();
+        const grouped  = allItems.reduce((acc, item) => {
+            (acc[item.category] = acc[item.category] || []).push(item);
             return acc;
         }, {});
 
-        db.categories.forEach(cat => {
+        (menu.categories || []).forEach(cat => {
             const items = grouped[cat] || [];
             const div   = document.createElement('div');
             div.className = 'category-group';
-
             const itemsHtml = items.length === 0
                 ? `<p class="no-items">אין מנות בקטגוריה זו</p>`
                 : items.map(item => {
-                    const imgSrc = item.image
-                        ? `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/images/${escAttr(item.image)}`
-                        : '';
+                    const key       = `item_${item.id}`;
+                    const imgSrc    = resolveImg(item);
                     const typesText = (item.types || []).join(' · ');
                     return `
                         <div class="item-row">
-                            ${imgSrc
-                                ? `<img src="${imgSrc}" class="item-img" alt="${escAttr(item.name)}">`
-                                : `<div class="item-img"></div>`}
+                            ${imgSrc ? `<img src="${escAttr(imgSrc)}" class="item-img" alt="${escAttr(item.name)}">` : `<div class="item-img"></div>`}
                             <div class="item-info">
                                 <strong>${escText(item.name)}</strong> — &#8362;${escText(String(item.price))}
                                 ${typesText ? `<div class="item-types">${escText(typesText)}</div>` : ''}
                             </div>
-                            <button class="btn-edit"   data-id="${item.id}" data-action="edit">ערוך</button>
-                            <button class="btn-delete" data-id="${item.id}" data-action="delete">מחק</button>
+                            <button class="btn-edit"   data-key="${escAttr(key)}" data-action="edit">ערוך</button>
+                            <button class="btn-delete" data-key="${escAttr(key)}" data-action="delete">מחק</button>
                         </div>`;
                 }).join('');
-
             div.innerHTML = `
                 <div class="category-header" onclick="this.parentElement.classList.toggle('active')">
                     <span>${escText(cat)} (${items.length})</span><span>▼</span>
@@ -479,20 +456,13 @@
         });
     }
 
-    // ---- Init ----
     document.getElementById('accordion-container').addEventListener('click', e => {
         const btn = e.target.closest('[data-action]');
         if (!btn) return;
-        const id = parseInt(btn.dataset.id);
-        if (btn.dataset.action === 'edit') startEdit(id);
-        else if (btn.dataset.action === 'delete') deleteItem(id);
+        const key = btn.dataset.key;
+        if (btn.dataset.action === 'edit')        startEdit(key);
+        else if (btn.dataset.action === 'delete') deleteItem(key);
     });
-
-    if (getToken()) {
-        document.getElementById('token-screen').style.display = 'none';
-        document.getElementById('admin-content').style.display = 'block';
-        loadFromGitHub();
-    }
 </script>
 </body>
 </html>
